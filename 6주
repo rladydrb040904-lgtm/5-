@@ -1,0 +1,288 @@
+// 바닥 변수
+let groundX = 0, groundY = 250, groundW = 1000, groundH = 150;
+let groundR = 50, groundG = 205, groundB = 50;
+
+// 태양 변수
+let sunX = 0, sunY = 70, sunSize = 40, sunVelocity = -1;
+
+// 바위 변수
+let rockX = 300, rockY = 250, rockSize = 80;
+
+// 쥐 변수
+let ratX = 0, ratY = 300, ratSpeed = 1;
+
+// 나무 배열 (병렬 배열 사용)
+let treeX = [];
+let treeY = [];
+let treeType = []; // 0: 기본, 1: 거리 비례색, 2: 마우스 호버색
+let treeCount = 0;
+
+// 열매 배열
+let fruitX = [];
+let fruitY = [];
+let fruitD = [];
+let fruitCount = 0;
+
+// 별똥별 (가속) 배열
+let ssX = [];
+let ssY = [];
+let ssSpeedX = [];
+let ssSpeedY = [];
+let ssAccelX = [];
+let ssAccelY = [];
+let ssCount = 0;
+
+// 별똥별 (마찰) 배열
+let fsX = [];
+let fsY = [];
+let fsSpeedX = [];
+let fsSpeedY = [];
+let fsFriction = [];
+let fsCount = 0;
+
+// 날파리 변수
+let flyX = 0;
+let flyTheta = 0;
+
+// 사람 이동 변수 (새로 추가)
+let personX = 0;
+
+function setup() {
+  createCanvas(1000, 400);
+
+  // 나무 데이터 할당 (push 대신 인덱스 사용)
+  treeX[treeCount] = 50; treeY[treeCount] = 130; treeType[treeCount] = 0; treeCount++;
+  treeX[treeCount] = 250; treeY[treeCount] = 130; treeType[treeCount] = 0; treeCount++;
+  treeX[treeCount] = 450; treeY[treeCount] = 130; treeType[treeCount] = 1; treeCount++;
+  treeX[treeCount] = 650; treeY[treeCount] = 130; treeType[treeCount] = 0; treeCount++;
+  treeX[treeCount] = 850; treeY[treeCount] = 130; treeType[treeCount] = 2; treeCount++;
+
+  // 열매 데이터 할당
+  fruitX[fruitCount] = 50; fruitY[fruitCount] = 115; fruitD[fruitCount] = 15; fruitCount++;
+  fruitX[fruitCount] = 250; fruitY[fruitCount] = 115; fruitD[fruitCount] = 15; fruitCount++;
+  fruitX[fruitCount] = 650; fruitY[fruitCount] = 115; fruitD[fruitCount] = 15; fruitCount++;
+  fruitX[fruitCount] = 680; fruitY[fruitCount] = 130; fruitD[fruitCount] = 15; fruitCount++;
+
+  // 별똥별 (가속) 생성
+  for (let i = 0; i < 4; i++) {
+    ssX[ssCount] = random(0, width);
+    ssY[ssCount] = random(-200, 0);
+    ssSpeedX[ssCount] = 0;
+    ssSpeedY[ssCount] = 0;
+    ssAccelX[ssCount] = random(0.05, 0.1);
+    ssAccelY[ssCount] = random(0.1, 0.2);
+    ssCount++;
+  }
+
+  // 별똥별 (마찰) 생성
+  for (let i = 0; i < 4; i++) {
+    fsX[fsCount] = random(0, width);
+    fsY[fsCount] = random(-200, 0);
+    fsSpeedX[fsCount] = random(2, 10);
+    fsSpeedY[fsCount] = random(5, 15);
+    fsFriction[fsCount] = 0.97;
+    fsCount++;
+  }
+}
+
+function draw() {
+  background(135, 206, 235);
+
+  // 별똥별 (가속) 그리기
+  for (let i = 0; i < ssCount; i++) {
+    ssSpeedX[i] += ssAccelX[i];
+    ssSpeedY[i] += ssAccelY[i];
+    ssX[i] += ssSpeedX[i];
+    ssY[i] += ssSpeedY[i];
+
+    if (ssY[i] > height + 50 || ssX[i] > width + 50) {
+      ssX[i] = random(0, width);
+      ssY[i] = random(-200, 0);
+      ssSpeedX[i] = 0;
+      ssSpeedY[i] = 0;
+    }
+
+    noStroke();
+    fill(255, 255, 150);
+    ellipse(ssX[i], ssY[i], 6, 6);
+  }
+
+  // 별똥별 (마찰) 그리기
+  for (let i = 0; i < fsCount; i++) {
+    fsSpeedX[i] *= fsFriction[i];
+    fsSpeedY[i] *= fsFriction[i];
+    fsX[i] += fsSpeedX[i];
+    fsY[i] += fsSpeedY[i];
+
+    if (fsSpeedY[i] < 0.2 || fsY[i] > height + 50 || fsX[i] > width + 50) {
+      fsX[i] = random(0, width);
+      fsY[i] = random(-200, 0);
+      fsSpeedX[i] = random(2, 10);
+      fsSpeedY[i] = random(5, 15);
+    }
+
+    noStroke();
+    fill(255, 200, 200);
+    ellipse(fsX[i], fsY[i], 6, 6);
+  }
+
+  // 바닥 그리기
+  drawGround();
+
+  // 나무 그리기
+  for (let i = 0; i < treeCount; i++) {
+    drawTree(treeX[i], treeY[i], treeType[i]);
+  }
+
+  // 열매 그리기
+  for (let i = 0; i < fruitCount; i++) {
+    drawFruit(fruitX[i], fruitY[i], fruitD[i]);
+  }
+
+  // 사진의 형식(image_e2bddd.jpg)을 적용한 사람 이동 로직
+  if (keyIsPressed) {
+    if (keyCode === LEFT_ARROW) {
+      personX -= 3; 
+    } else if (keyCode === RIGHT_ARROW) {
+      personX += 3;
+    }
+  }
+
+  // 사람, 바위 그리기
+  drawPerson();
+  drawRock();
+
+  // 태양 그리기 및 업데이트
+  sunX += sunVelocity;
+  if (sunX < 0 || sunX > 1000) {
+    sunX = 1000;
+  }
+  noStroke();
+  fill(255, 255, 0);
+  ellipse(sunX, sunY, sunSize, sunSize);
+
+  // 쥐 그리기 및 업데이트
+  ratX += ratSpeed;
+  if (ratX < 0 || ratX > 1000) {
+    ratX = 0;
+  }
+  drawRat(ratX, ratY);
+
+  // 날파리 그리기
+  let flyY = 200 + 30 * sin(flyTheta);
+  flyTheta += 0.2;
+
+  flyX += 3;
+  if (flyX > width) {
+    flyX = 0;
+  }
+
+  stroke(0);
+  strokeWeight(5);
+  point(flyX, flyY);
+}
+
+
+// --- 아래부터는 각 요소를 그리는 함수들입니다 ---
+
+function drawGround() {
+  noStroke();
+  if (key === "g") {
+    groundR = 50; groundG = 205; groundB = 50;
+  } else if (key === "d") {
+    groundR = 245; groundG = 222; groundB = 179;
+  }
+  fill(groundR, groundG, groundB);
+  rect(groundX, groundY, groundW, groundH);
+}
+
+function drawTree(x, y, type) {
+  noStroke();
+  fill(139, 69, 19); // 기둥
+  rect(x, y, 30, 120);
+
+  let leafX = x + 15;
+  
+  if (type === 0) { // 일반 나무
+    fill(0, 255, 0);
+    ellipse(leafX, y, 80, 80);
+  } else if (type === 1) { // 거리에 따른 나뭇잎색
+    let dd = dist(leafX, y, mouseX, mouseY);
+    fill(130, dd, 0);
+    ellipse(leafX, y, 80, 80);
+  } else if (type === 2) { // 마우스 들어가면 색변하는 나무
+    let radius = 40;
+    let d = dist(leafX, y, mouseX, mouseY);
+    if (d < radius) {
+      fill(194, 30, 39);
+    } else {
+      fill(0, 255, 0);
+    }
+    ellipse(leafX, y, radius * 2, radius * 2);
+  }
+}
+
+function drawFruit(x, y, d) {
+  noStroke();
+  if (x === 50) {
+    let distance = dist(x, y, mouseX, mouseY);
+    if (distance < d / 2) {
+      fill(0, 255, 0);
+    } else {
+      fill(255, 0, 0);
+    }
+  } else {
+    fill(255, 0, 0);
+  }
+  ellipse(x, y, d, d);
+}
+
+// X 좌표에 personX 변수를 더하여 이동 반영
+function drawPerson() {
+  stroke(0);
+  strokeWeight(1);
+  
+  fill(0, 0, 255);
+  beginShape();
+  vertex(90 + personX, 190); vertex(90 + personX, 240); vertex(100 + personX, 240); vertex(100 + personX, 200);
+  vertex(100 + personX, 270); vertex(110 + personX, 270); vertex(110 + personX, 240); vertex(110 + personX, 270);
+  vertex(120 + personX, 270); vertex(120 + personX, 240); vertex(120 + personX, 200); vertex(120 + personX, 240);
+  vertex(130 + personX, 240); vertex(130 + personX, 190); vertex(90 + personX, 190);
+  endShape();
+
+  fill(222, 184, 135);
+  ellipse(110 + personX, 175, 30, 30);
+
+  strokeWeight(3);
+  point(115 + personX, 170);
+  point(105 + personX, 170);
+  
+  strokeWeight(1);
+  line(108 + personX, 180, 113 + personX, 180);
+
+  fill(210, 105, 30);
+  beginShape();
+  vertex(130 + personX, 165); vertex(90 + personX, 165); vertex(110 + personX, 150);
+  endShape(CLOSE);
+}
+
+function drawRock() {
+  noStroke();
+  fill(127);
+  arc(rockX, rockY, rockSize, rockSize, radians(180), radians(0));
+}
+
+function drawRat(x, y) {
+  noStroke();
+  fill(127);
+  ellipse(x, y, 16, 16);
+
+  beginShape();
+  vertex(x, y + 8);
+  vertex(x, y - 8);
+  vertex(x + 20, y);
+  endShape(CLOSE);
+
+  fill(0);
+  ellipse(x + 10, y - 4, 4, 4);
+}
