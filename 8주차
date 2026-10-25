@@ -1,0 +1,386 @@
+// 이미지 및 사운드 변수
+let bgImg;
+let catchSound;
+
+// 바닥
+let groundX = 0, groundY = 250, groundW = 1000, groundH = 150;
+let groundR = 50, groundG = 205, groundB = 50;
+
+// 태양
+let sunX = 0, sunY = 70, sunSize = 40, sunVelocity = -1;
+
+// 바위
+let rockX = 300, rockY = 250, rockSize = 80;
+
+// 쥐
+let ratX = 0, ratY = 300, ratSpeed = 1;
+
+// 나무 배열
+let treeX = [];
+let treeY = [];
+let treeType = []; // 0: 기본, 1: 거리 비례색, 2: 마우스 호버색
+
+// 배경의 기본 장식 열매 배열
+let fruitX = [];
+let fruitY = [];
+let fruitD = [];
+
+// 별똥별(가속) 배열
+let ssX = [];
+let ssY = [];
+let ssSpeedX = [];
+let ssSpeedY = [];
+let ssAccelX = [];
+let ssAccelY = [];
+
+// 별똥별(마찰) 배열
+let fsX = [];
+let fsY = [];
+let fsSpeedX = [];
+let fsSpeedY = [];
+let fsFriction = [];
+
+// 날파리
+let flyX = 0;
+let flyTheta = 0;
+
+// 사람 X좌표
+let personX = 0; 
+
+// --- 새롭게 추가된 게임성(라운드) 관련 변수 ---
+let targetX, targetY, targetSize, targetSpeed;
+let score = 0;
+let round = 1;       // 현재 라운드
+let catchCount = 0;  // 현재 라운드에서 열매를 잡은 개수
+let isGameOver = false;
+
+
+async function setup() {
+  createCanvas(1000, 400);
+  bgImg = await loadImage('data/cosmos.jpg');
+  catchSound = await loadSound('data/catch.mp3');
+
+  // 나무 초기화
+  treeX[0] = 50;  treeY[0] = 130; treeType[0] = 0;
+  treeX[1] = 250; treeY[1] = 130; treeType[1] = 0;
+  treeX[2] = 450; treeY[2] = 130; treeType[2] = 1;
+  treeX[3] = 650; treeY[3] = 130; treeType[3] = 0;
+  treeX[4] = 850; treeY[4] = 130; treeType[4] = 2;
+
+  // 배경 열매 초기화
+  fruitX[0] = 50;  fruitY[0] = 115; fruitD[0] = 15;
+  fruitX[1] = 250; fruitY[1] = 115; fruitD[1] = 15;
+  fruitX[2] = 650; fruitY[2] = 115; fruitD[2] = 15;
+  fruitX[3] = 680; fruitY[3] = 130; fruitD[3] = 15;
+
+  // 별똥별(가속) 초기화
+  for (let i = 0; i < 4; i++) {
+    ssX[i] = random(0, width);
+    ssY[i] = random(-200, 0);
+    ssSpeedX[i] = 0;
+    ssSpeedY[i] = 0;
+    ssAccelX[i] = random(0.05, 0.1);
+    ssAccelY[i] = random(0.1, 0.2);
+  }
+
+  // 별똥별(마찰) 초기화
+  for (let i = 0; i < 4; i++) {
+    fsX[i] = random(0, width);
+    fsY[i] = random(-200, 0);
+    fsSpeedX[i] = random(2, 10);
+    fsSpeedY[i] = random(5, 15);
+    fsFriction[i] = 0.97;
+  }
+
+  // 게임 초기화 함수 호출
+  resetGame();
+}
+
+function draw() {
+  if (bgImg) {
+    image(bgImg, 0, 0, width, height);
+  } else {
+    background(135, 206, 235); 
+  }
+
+  // 별똥별(가속) 그리기
+  for (let i = 0; i < ssX.length; i++) {
+    ssSpeedX[i] += ssAccelX[i];
+    ssSpeedY[i] += ssAccelY[i];
+    ssX[i] += ssSpeedX[i];
+    ssY[i] += ssSpeedY[i];
+
+    if (ssY[i] > height + 50 || ssX[i] > width + 50) {
+      ssX[i] = random(0, width);
+      ssY[i] = random(-200, 0);
+      ssSpeedX[i] = 0;
+      ssSpeedY[i] = 0;
+    }
+    noStroke();
+    fill(255, 255, 150);
+    ellipse(ssX[i], ssY[i], 6, 6);
+  }
+
+  // 별똥별(마찰) 그리기
+  for (let i = 0; i < fsX.length; i++) {
+    fsSpeedX[i] *= fsFriction[i];
+    fsSpeedY[i] *= fsFriction[i];
+    fsX[i] += fsSpeedX[i];
+    fsY[i] += fsSpeedY[i];
+
+    if (fsSpeedY[i] < 0.2 || fsY[i] > height + 50 || fsX[i] > width + 50) {
+      fsX[i] = random(0, width);
+      fsY[i] = random(-200, 0);
+      fsSpeedX[i] = random(2, 10);
+      fsSpeedY[i] = random(5, 15);
+    }
+    noStroke();
+    fill(255, 200, 200);
+    ellipse(fsX[i], fsY[i], 6, 6);
+  }
+
+  drawGround();
+  
+  // 바위를 바닥 직후로 옮겨서 제일 뒤에 위치하게 설정
+  drawRock();
+
+  for (let i = 0; i < treeX.length; i++) {
+    drawTree(treeX[i], treeY[i], treeType[i]);
+  }
+
+  for (let i = 0; i < fruitX.length; i++) {
+    drawFruit(fruitX[i], fruitY[i], fruitD[i]);
+  }
+
+  // 게임 요소: 목표물 표시 및 조작
+  displayTarget();
+  moveTarget();
+  catchTarget();
+
+  // 사람 이동 (A, D 키)
+  if (keyIsPressed) { 
+    if (key === 'a' || key === 'A') {
+      personX -= 10; 
+    } else if (key === 'd' || key === 'D') {
+      personX += 10; 
+    }
+    // 화면 이탈 방지 제한
+    personX = constrain(personX, -90, width - 130);
+  }
+
+  drawPerson();
+
+  sunX += sunVelocity;
+  if (sunX < 0 || sunX > 1000) {
+    sunX = 1000;
+  }
+  noStroke();
+  fill(255, 255, 0);
+  ellipse(sunX, sunY, sunSize, sunSize);
+
+  ratX += ratSpeed;
+  if (ratX < 0 || ratX > 1000) {
+    ratX = 0;
+  }
+  drawRat(ratX, ratY);
+
+  let flyY = 200 + 30 * sin(flyTheta);
+  flyTheta += 0.2;
+  flyX += 3;
+  if (flyX > width) {
+    flyX = 0;
+  }
+  stroke(0);
+  strokeWeight(5);
+  point(flyX, flyY);
+
+  // 현재 라운드 및 점수 화면 좌측 상단에 표시
+  if (!isGameOver) {
+    fill(0);
+    noStroke();
+    textSize(24);
+    textAlign(LEFT);
+    text("Round: " + round, 20, 30);
+    text("Score: " + score, 20, 60);
+  }
+}
+
+
+// --- 게임 관련 로직 함수들 ---
+
+function resetGame() {
+  targetSize = 30; // 목표물 크기 초기화
+  targetX = random(targetSize / 2, width - targetSize / 2); // x축 좌표 초기화
+  targetY = 0; // y축 좌표 초기화
+  targetSpeed = 2; // 목표물 속도 초기화
+  score = 0; // 점수 초기화
+  round = 1; // 라운드 초기화
+  catchCount = 0; // 카운트 초기화
+  personX = 0; // 플레이어 위치 초기화
+  isGameOver = false;
+}
+
+function displayTarget() {
+  // 목표물 이미지 대신 빨간 열매 모양으로 표시
+  fill(255, 0, 0);
+  noStroke();
+  ellipse(targetX, targetY, targetSize, targetSize);
+}
+
+function moveTarget() {
+  targetY += targetSpeed; // y축 속도 누적하여 낙하
+
+  if (targetY > height) { // 바닥을 벗어난 경우 (게임 오버)
+    isGameOver = true;
+    
+    // GAME OVER 텍스트
+    fill(255, 0, 0);
+    textSize(50);
+    textAlign(CENTER);
+    text('GAME OVER', width / 2, height / 2 - 40);
+    
+    // 재시작 안내 텍스트
+    fill(0);
+    textSize(20);
+    text('Hit the space key to restart', width / 2, height / 2 + 10);
+    
+    // 최종 라운드 및 합산 점수 표시
+    fill(0, 0, 255);
+    textSize(30);
+    text('Final Round: ' + round + '   Final Score: ' + score, width / 2, height / 2 + 60);
+    
+    noLoop(); // 게임(draw 반복) 정지
+  }
+}
+
+function catchTarget() {
+  // 사람의 머리/몸통 위치 계산 (drawPerson 기준 중심 X좌표는 대략 110 + personX)
+  let pX = 110 + personX;
+  let pW = 40; // 캐릭터의 타격 판정 폭 (약 40)
+  let pY = 175; // 캐릭터가 열매를 잡는 기준선 (머리 높이)
+
+  // 목표물이 플레이어 범위 내에 닿았는지 판별
+  if (targetX > pX - pW && targetX < pX + pW && targetY > pY && targetY < pY + 100) {
+    if (catchSound) {
+      if (catchSound.isPlaying()) catchSound.stop();
+      catchSound.play(); // 효과음 재생
+    }
+    
+    // 타겟 잡았을 때 속성 변경 (초기화)
+    targetX = random(targetSize / 2, width - targetSize / 2); 
+    targetY = 0;
+    
+    score += 5; // 점수 5점씩 증가
+    catchCount++; // 잡은 개수 증가
+
+    // 5개를 잡을 때마다 라운드가 상승하며 속도 증가
+    if (catchCount >= 5) {
+      round++;
+      targetSpeed += 1; // 라운드마다 낙하 속도 증가폭
+      catchCount = 0; // 다음 라운드를 위해 잡은 개수 초기화
+    }
+  }
+}
+
+// 스페이스 키를 누르면 게임 재시작
+function keyPressed() {
+  if (key === ' ' && isGameOver) {
+    resetGame(); // 게임 값 초기화 호출
+    loop(); // 멈춰있던 루프 재실행
+  }
+}
+
+
+// --- 배경 및 객체 그리기 함수들 ---
+
+function drawGround() {
+  noStroke();
+  if (keyIsDown(71)) { // 'g'
+    groundR = 50; groundG = 205; groundB = 50;
+  } else if (keyIsDown(77)) { // 'm'
+    groundR = 245; groundG = 222; groundB = 179;
+  }
+  fill(groundR, groundG, groundB);
+  rect(groundX, groundY, groundW, groundH);
+}
+
+function drawTree(x, y, type) {
+  noStroke();
+  fill(139, 69, 19); 
+  rect(x, y, 30, 120);
+  let leafX = x + 15;
+  if (type === 0) { 
+    fill(0, 255, 0);
+    ellipse(leafX, y, 80, 80);
+  } else if (type === 1) { 
+    let dd = dist(leafX, y, mouseX, mouseY);
+    fill(130, dd, 0);
+    ellipse(leafX, y, 80, 80);
+  } else if (type === 2) { 
+    let radius = 40;
+    let d = dist(leafX, y, mouseX, mouseY);
+    if (d < radius) {
+      fill(194, 30, 39);
+    } else {
+      fill(0, 255, 0);
+    }
+    ellipse(leafX, y, radius * 2, radius * 2);
+  }
+}
+
+function drawFruit(x, y, d) {
+  noStroke();
+  if (x === 50) {
+    let distance = dist(x, y, mouseX, mouseY);
+    if (distance < d / 2) {
+      fill(0, 255, 0);
+    } else {
+      fill(255, 0, 0);
+    }
+  } else {
+    fill(255, 0, 0);
+  }
+  ellipse(x, y, d, d);
+}
+
+function drawPerson() {
+  stroke(0);
+  strokeWeight(1);
+  fill(0, 0, 255);
+  beginShape();
+  vertex(90 + personX, 190); vertex(90 + personX, 240); vertex(100 + personX, 240); vertex(100 + personX, 200);
+  vertex(100 + personX, 270); vertex(110 + personX, 270); vertex(110 + personX, 240); vertex(110 + personX, 270);
+  vertex(120 + personX, 270); vertex(120 + personX, 240); vertex(120 + personX, 200); vertex(120 + personX, 240);
+  vertex(130 + personX, 240); vertex(130 + personX, 190); vertex(90 + personX, 190);
+  endShape();
+  fill(222, 184, 135);
+  ellipse(110 + personX, 175, 30, 30);
+  strokeWeight(3);
+  point(115 + personX, 170);
+  point(105 + personX, 170);
+  strokeWeight(1);
+  line(108 + personX, 180, 113 + personX, 180);
+  fill(210, 105, 30);
+  beginShape();
+  vertex(130 + personX, 165); vertex(90 + personX, 165); vertex(110 + personX, 150);
+  endShape(CLOSE);
+}
+
+function drawRock() {
+  noStroke();
+  fill(127);
+  arc(rockX, rockY, rockSize, rockSize, radians(180), radians(0));
+}
+
+function drawRat(x, y) {
+  noStroke();
+  fill(127);
+  ellipse(x, y, 16, 16);
+  beginShape();
+  vertex(x, y + 8);
+  vertex(x, y - 8);
+  vertex(x + 20, y);
+  endShape(CLOSE);
+  fill(0);
+  ellipse(x + 10, y - 4, 4, 4);
+}
